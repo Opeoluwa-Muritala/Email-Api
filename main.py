@@ -25,7 +25,7 @@ class EmailRequest(BaseModel):
     text: str = None
     html: str = None
 
-@app.post("/send")
+@app.post("/")
 def send_email(req: EmailRequest):
     # Use the credentials preferred by the target snippet
     sender_email = os.getenv('MAIL_USERNAME')
