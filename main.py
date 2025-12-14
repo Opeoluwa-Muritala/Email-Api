@@ -41,9 +41,10 @@ def send_email(req: EmailRequest):
         "template_id": MAIL_TEMPLATE_ID,
         "user_id": MAIL_USER_ID,
         "template_params": {
-            "to_email": req.to,      # Make sure your EmailJS template uses {{to_email}}
-            "subject": req.subject,  # Make sure your EmailJS template uses {{subject}}
-            "message": message_content # Make sure your EmailJS template uses {{message}}
+            "email": "muritalaopeoluwa10@gmail.com"
+            "to_email": req.to,      
+            "subject": req.subject,  
+            "message": message_content 
         }
     }
 
