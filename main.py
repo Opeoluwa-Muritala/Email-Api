@@ -1,21 +1,20 @@
 import os
-import smtplib
 import logging
+import requests  # Replaces smtplib
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 # ---- CONFIGURATION ---- #
 # Setup basic logging to match the target style
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration constants from the target snippet
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
-SMTP_TIMEOUT = int(os.getenv('SMTP_TIMEOUT', 10))  # seconds
-SMTP_USE_STARTTLS = os.getenv('SMTP_USE_STARTTLS', 'true').lower() in ('1', 'true', 'yes')
+# Configuration constants (Mapped to EmailJS requirements)
+# INFO: Get these from your EmailJS Dashboard > Account / Email Services
+MAIL_SERVICE_ID = os.getenv('MAIL_SERVICE_ID')    # The ID of the Gmail service you connected
+MAIL_TEMPLATE_ID = os.getenv('MAIL_TEMPLATE_ID')  # The ID of the template you created
+MAIL_USER_ID = os.getenv('MAIL_USER_ID')          # Your "Public Key"
+MAIL_PRIVATE_KEY = os.getenv('MAIL_PRIVATE_KEY')  # Your "Private Key" (Optional, but safer)
 
 app = FastAPI()
 
@@ -27,55 +26,47 @@ class EmailRequest(BaseModel):
 
 @app.post("/")
 def send_email(req: EmailRequest):
-    # Use the credentials preferred by the target snippet
-    sender_email = os.getenv('MAIL_USERNAME')
-    sender_password = os.getenv('MAIL_PASSWORD')
-
-    if not sender_email or not sender_password:
-        logger.error("Missing email credentials in .env file (MAIL_USERNAME / MAIL_PASSWORD)")
+    # Validation
+    if not MAIL_USER_ID or not MAIL_SERVICE_ID:
+        logger.error("Missing email configuration (MAIL_USER_ID / MAIL_SERVICE_ID)")
         raise HTTPException(status_code=500, detail="Server misconfiguration: missing credentials")
 
-    # Create Message
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = req.to
-    msg["Subject"] = req.subject
+    # Prepare Message Content
+    # We combine text/html into one 'message' variable for the template
+    message_content = req.html if req.html else req.text
+    
+    # Payload matches EmailJS API structure
+    payload = {
+        "service_id": MAIL_SERVICE_ID,
+        "template_id": MAIL_TEMPLATE_ID,
+        "user_id": MAIL_USER_ID,
+        "template_params": {
+            "to_email": req.to,      # Make sure your EmailJS template uses {{to_email}}
+            "subject": req.subject,  # Make sure your EmailJS template uses {{subject}}
+            "message": message_content # Make sure your EmailJS template uses {{message}}
+        }
+    }
 
-    # Handle both HTML and Text (Preserving functionality from the first snippet)
-    if req.html:
-        msg.attach(MIMEText(req.html, "html"))
-    elif req.text:
-        msg.attach(MIMEText(req.text, "plain"))
-    else:
-        return {"error": "No message body provided"}
+    # Add Private Key for security (if available)
+    if MAIL_PRIVATE_KEY:
+        payload['accessToken'] = MAIL_PRIVATE_KEY
 
     try:
-        # Use context manager and timeout as requested
-        # Note: We use standard SMTP here, not SMTP_SSL, to allow for STARTTLS upgrade
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
-            
-            # Optional EHLO/HELO before TLS
-            try:
-                server.ehlo()
-            except Exception:
-                pass
+        # Send via HTTP POST (Port 443) - This bypasses the Render SMTP block
+        response = requests.post(
+            "https://api.emailjs.com/api/v1.0/email/send",
+            json=payload,
+            headers={'Content-Type': 'application/json'}
+        )
 
-            # Logic to handle STARTTLS if configured
-            if SMTP_USE_STARTTLS:
-                server.starttls()
-                try:
-                    server.ehlo()
-                except Exception:
-                    pass
-
-            # Login and Send
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        logger.info(f"Email sent successfully to {req.to}")
-        return {"success": True, "message": "Email sent"}
+        # Check response
+        if response.status_code == 200 or response.text == 'OK':
+            logger.info(f"Email sent successfully to {req.to}")
+            return {"success": True, "message": "Email sent"}
+        else:
+            logger.error(f"Provider Error: {response.text}")
+            raise HTTPException(status_code=500, detail=f"Email Provider Error: {response.text}")
 
     except Exception as e:
-        logger.error(f"Failed to send email via SMTP: {e}")
-        # Return a 500 error so the client knows it failed
+        logger.error(f"Failed to send email via API: {e}")
         raise HTTPException(status_code=500, detail=str(e))
