@@ -41,7 +41,7 @@ def send_email(req: EmailRequest):
         "template_id": MAIL_TEMPLATE_ID,
         "user_id": MAIL_USER_ID,
         "template_params": {
-            "email": "muritalaopeoluwa10@gmail.com",
+            "email": "MAIL_EMAIL",
             "to_email": req.to,      
             "subject": req.subject,  
             "message": message_content 
