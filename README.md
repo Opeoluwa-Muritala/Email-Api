@@ -20,8 +20,8 @@ This service sends emails via the [EmailJS](https://www.emailjs.com/) REST API. 
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
-    cd <your-repo-folder>
+    git clone https://github.com/Opeoluwa-Muritala/Email-Api
+    cd Email-Api
     ```
 
 2.  **Install dependencies:**
