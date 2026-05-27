@@ -71,3 +71,17 @@ def send_email(req: EmailRequest):
     except Exception as e:
         logger.error(f"Failed to send email via API: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/health")
+def health_check():
+    missing = [
+        name for name, val in {
+            "MAIL_SERVICE_ID": MAIL_SERVICE_ID,
+            "MAIL_TEMPLATE_ID": MAIL_TEMPLATE_ID,
+            "MAIL_USER_ID": MAIL_USER_ID,
+        }.items() if not val
+    ]
+    if missing:
+        raise HTTPException(status_code=503, detail=f"Missing config: {missing}")
+    return {"status": "ok"}
